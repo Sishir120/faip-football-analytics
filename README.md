@@ -8,8 +8,9 @@ FAIP is a production-grade, end-to-end football analytics platform designed for 
 
 ## 🎥 Demo
 
-Watch the **Possession Chain SVG Flow Visualizer & Playback Engine** in action:
-[![FAIP Possession Chain Demo](https://img.shields.io/badge/Demo-Loom_Video-blueviolet?style=for-the-badge&logo=loom)](https://www.loom.com/share/faip-possession-chain-demo-placeholder)
+Watch the **Possession Chain SVG Flow Visualizer & Playback Engine** in action (animated walkthrough):
+
+![FAIP Possession Chain Demo Walkthrough](docs/screenshots/possession_chains_demo.webp)
 
 ---
 
