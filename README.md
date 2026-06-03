@@ -2,6 +2,8 @@
 
 FAIP is a production-grade, end-to-end football analytics platform designed for advanced tactical analysis, player scouting, and match center visualizations. It integrates data engineering pipelines, mathematical modeling (Expected Threat), and machine learning (Expected Goals, clustering, similarity search) into a responsive, glassmorphic dark-themed Next.js dashboard.
 
+**Live Deployment (Frontend):** [faip-football-analytics.vercel.app](https://faip-football-analytics.vercel.app)
+
 ---
 
 ## 🎥 Demo
