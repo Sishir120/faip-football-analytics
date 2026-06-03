@@ -14,6 +14,7 @@ import {
   Layers,
   Database
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function DashboardPage() {
   const [competitions, setCompetitions] = useState<any[]>([]);
@@ -27,7 +28,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function getCompetitions() {
       try {
-        const res = await fetch("http://localhost:8000/api/competitions");
+        const res = await fetch(`${API_URL}/api/competitions`);
         if (!res.ok) throw new Error("Failed to load competitions");
         const data = await res.json();
         setCompetitions(data);
@@ -54,7 +55,7 @@ export default function DashboardPage() {
       setLoadingMatches(true);
       try {
         const res = await fetch(
-          `http://localhost:8000/api/matches?competition_id=${selectedComp.competition_id}&season_id=${selectedComp.season_id}`
+          `${API_URL}/api/matches?competition_id=${selectedComp.competition_id}&season_id=${selectedComp.season_id}`
         );
         if (!res.ok) throw new Error("Failed to load matches for this competition");
         const data = await res.json();

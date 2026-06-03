@@ -17,6 +17,7 @@ import {
   Zap,
   RefreshCw,
 } from "lucide-react";
+import { API_URL as API } from "@/lib/api";
 
 /* ── Types ────────────────────────────────────────────────────── */
 interface PlayerStats {
@@ -57,7 +58,6 @@ interface SimilarityResult {
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
-const API = "http://localhost:8000";
 
 function StatBar({
   label,

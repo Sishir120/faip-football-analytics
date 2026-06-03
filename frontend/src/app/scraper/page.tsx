@@ -13,6 +13,7 @@ import {
   Clock,
   Layers
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function ScraperPage() {
   const [league, setLeague] = useState<string>("la-liga");
@@ -28,7 +29,7 @@ export default function ScraperPage() {
   async function fetchCached() {
     setLoadingCached(true);
     try {
-      const res = await fetch("http://localhost:8000/api/scrape/cached");
+      const res = await fetch(`${API_URL}/api/scrape/cached`);
       if (!res.ok) throw new Error("Failed to fetch cached datasets");
       const data = await res.json();
       setCachedList(data);
@@ -42,7 +43,7 @@ export default function ScraperPage() {
   // Fetch running task status
   async function checkStatus() {
     try {
-      const res = await fetch("http://localhost:8000/api/scrape/status");
+      const res = await fetch(`${API_URL}/api/scrape/status`);
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -69,7 +70,7 @@ export default function ScraperPage() {
     setError(null);
     try {
       const res = await fetch(
-        `http://localhost:8000/api/scrape/fbref?league=${league}&season=${season}`, 
+        `${API_URL}/api/scrape/fbref?league=${league}&season=${season}`, 
         { method: "POST" }
       );
       const data = await res.json();
@@ -283,7 +284,7 @@ export default function ScraperPage() {
 
                     <div className="flex items-center gap-1.5">
                       <a
-                        href={`http://localhost:8000/api/scrape/export?league=${c.league}&season=${c.season}&stat_type=${c.stat_type}`}
+                        href={`${API_URL}/api/scrape/export?league=${c.league}&season=${c.season}&stat_type=${c.stat_type}`}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-[10px] font-bold text-slate-300 hover:text-white border border-slate-800 transition-colors"
                       >
                         <Download size={11} />

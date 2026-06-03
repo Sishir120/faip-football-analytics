@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { API_URL } from "@/lib/api";
 import { 
   Play, 
   Pause, 
@@ -58,7 +59,7 @@ export default function PossessionChainTab({ matchId }: PossessionChainTabProps)
   useEffect(() => {
     async function fetchGrid() {
       try {
-        const res = await fetch("http://localhost:8000/api/xt/grid");
+        const res = await fetch(`${API_URL}/api/xt/grid`);
         if (res.ok) {
           const data = await res.json();
           setXtGrid(data);
@@ -76,7 +77,7 @@ export default function PossessionChainTab({ matchId }: PossessionChainTabProps)
       setLoadingSummary(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:8000/api/matches/${matchId}/chains`);
+        const res = await fetch(`${API_URL}/api/matches/${matchId}/chains`);
         if (!res.ok) {
           throw new Error("Failed to load possession chains. Ensure database is seeded.");
         }
@@ -105,7 +106,7 @@ export default function PossessionChainTab({ matchId }: PossessionChainTabProps)
       setLoadingDetails(true);
       setIsPlaying(false);
       try {
-        const res = await fetch(`http://localhost:8000/api/matches/${matchId}/chains/${selectedChainId}`);
+        const res = await fetch(`${API_URL}/api/matches/${matchId}/chains/${selectedChainId}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {

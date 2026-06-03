@@ -17,6 +17,7 @@ import {
   BookOpen,
   Workflow
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function MatchAnalysisPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -37,7 +38,7 @@ export default function MatchAnalysisPage({ params }: { params: Promise<{ id: st
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:8000/api/events?match_id=${matchId}`);
+        const res = await fetch(`${API_URL}/api/events?match_id=${matchId}`);
         if (!res.ok) {
           throw new Error("Failed to load match events. Ensure database is seeded.");
         }
@@ -71,7 +72,7 @@ export default function MatchAnalysisPage({ params }: { params: Promise<{ id: st
       async function fetchXt() {
         setLoadingXt(true);
         try {
-          const res = await fetch(`http://localhost:8000/api/xt/match/${matchId}`);
+          const res = await fetch(`${API_URL}/api/xt/match/${matchId}`);
           if (res.ok) {
             const data = await res.json();
             setXtData(data);
@@ -177,15 +178,15 @@ export default function MatchAnalysisPage({ params }: { params: Promise<{ id: st
   // Dynamic Fetch URL generation based on active tab
   let fetchUrl = "";
   if (activeTab === "shot-map") {
-    fetchUrl = `http://localhost:8000/api/viz/shot-map?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
+    fetchUrl = `${API_URL}/api/viz/shot-map?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
   } else if (activeTab === "pass-map") {
-    fetchUrl = `http://localhost:8000/api/viz/pass-map?match_id=${matchId}&player=${encodeURIComponent(selectedPlayer)}`;
+    fetchUrl = `${API_URL}/api/viz/pass-map?match_id=${matchId}&player=${encodeURIComponent(selectedPlayer)}`;
   } else if (activeTab === "heatmap") {
-    fetchUrl = `http://localhost:8000/api/viz/heatmap?match_id=${matchId}&player=${encodeURIComponent(selectedPlayer)}`;
+    fetchUrl = `${API_URL}/api/viz/heatmap?match_id=${matchId}&player=${encodeURIComponent(selectedPlayer)}`;
   } else if (activeTab === "pass-network") {
-    fetchUrl = `http://localhost:8000/api/viz/pass-network?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
+    fetchUrl = `${API_URL}/api/viz/pass-network?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
   } else if (activeTab === "xt-map") {
-    fetchUrl = `http://localhost:8000/api/xt/heatmap?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
+    fetchUrl = `${API_URL}/api/xt/heatmap?match_id=${matchId}&team=${encodeURIComponent(selectedTeam)}`;
   }
 
   return (

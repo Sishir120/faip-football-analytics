@@ -15,6 +15,7 @@ import {
   TrendingUp,
   RefreshCw,
 } from "lucide-react";
+import { API_URL as API } from "@/lib/api";
 
 /* ── Types ────────────────────────────────────────────────────────── */
 interface TeamEntry {
@@ -59,7 +60,6 @@ interface ClusterResult {
 }
 
 /* ── Constants ────────────────────────────────────────────────────── */
-const API = "http://localhost:8000";
 
 const ARCHETYPE_COLORS: Record<string, string> = {
   "High Press": "#ef4444",

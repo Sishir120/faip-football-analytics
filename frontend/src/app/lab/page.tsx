@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Cpu
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function MLLabPage() {
   const [algorithm, setAlgorithm] = useState<string>("logistic");
@@ -25,7 +26,7 @@ export default function MLLabPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(`http://localhost:8000/api/ml/xg-model/train?algorithm=${algorithm}`, {
+      const res = await fetch(`${API_URL}/api/ml/xg-model/train?algorithm=${algorithm}`, {
         method: "POST"
       });
       const data = await res.json();

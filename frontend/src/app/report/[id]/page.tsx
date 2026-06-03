@@ -11,6 +11,7 @@ import {
   Award,
   CheckCircle2
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function MatchReportPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -25,7 +26,7 @@ export default function MatchReportPage({ params }: { params: Promise<{ id: stri
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:8000/api/report/match?match_id=${matchId}`);
+        const res = await fetch(`${API_URL}/api/report/match?match_id=${matchId}`);
         if (!res.ok) {
           throw new Error("Failed to compile match intelligence report. Ensure match is cached.");
         }
@@ -93,7 +94,7 @@ export default function MatchReportPage({ params }: { params: Promise<{ id: stri
         
         {/* PDF Download Direct Anchor linking to API download endpoint */}
         <a
-          href={`http://localhost:8000/api/report/match/download-pdf?match_id=${matchId}`}
+          href={`${API_URL}/api/report/match/download-pdf?match_id=${matchId}`}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-95 shadow-lg shadow-emerald-500/10 text-xs font-bold transition-all"
         >
           <Download size={14} />

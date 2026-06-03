@@ -4,6 +4,9 @@ FAIP is a production-grade, end-to-end football analytics platform designed for 
 
 **Live Deployment (Frontend):** [faip-football-analytics.vercel.app](https://faip-football-analytics.vercel.app)
 
+**One-Click Cloud Backend & Database Setup:**
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Sishir120/faip-football-analytics)
+
 ---
 
 ## 🎥 Demo
@@ -224,3 +227,49 @@ npm install
 npm run dev
 ```
 Navigate to `http://localhost:3000`.
+
+---
+
+## 🛠️ Automated Setup & Execution (Windows)
+To reduce manual steps, a root-level PowerShell script is provided to automate everything (venv setup, dependency installation, database seeding, and launching dev servers):
+
+```powershell
+.\run.ps1
+```
+This script will:
+1. Verify Python & Node.js/npm are installed.
+2. Initialize the Python virtual environment in `backend/venv` and install all Python requirements.
+3. Automatically check if the StatsBomb event database exists and seed it if missing.
+4. Run `npm install` in the frontend if needed.
+5. Create a default `frontend/.env.local` pointing to the local API server.
+6. Launch both the backend and frontend in separate active terminal windows.
+
+---
+
+## 🌐 Production Deployment & Database Setup
+
+### 1. Cloud Database Setup (PostgreSQL)
+The backend supports PostgreSQL out-of-the-box using the `DATABASE_URL` environment variable.
+1. Provision a PostgreSQL instance (e.g., via [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Render Postgres](https://render.com)).
+2. Set the `DATABASE_URL` environment variable on your backend hosting platform to your connection string (e.g., `postgresql://user:password@host:port/dbname`).
+3. The backend automatically creates all required tables on startup.
+4. To seed your cloud database with standard StatsBomb data:
+   ```bash
+   # Windows (with backend venv active)
+   $env:DATABASE_URL="your-postgresql-connection-string"
+   python scripts/seed_statsbomb.py
+   ```
+
+### 2. Backend Deployment
+Deploy the FastAPI backend to a service like [Render](https://render.com) or [Railway](https://railway.app):
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- **Environment Variables:** Set `DATABASE_URL` to your PostgreSQL database URL.
+
+### 3. Frontend Deployment (Vercel)
+The frontend is pre-configured for Vercel deployment:
+1. Connect your GitHub repository to Vercel.
+2. In the Vercel Project Settings, add the following Environment Variable:
+   - `NEXT_PUBLIC_API_URL`: The URL of your deployed FastAPI backend (e.g., `https://faip-backend.onrender.com`).
+3. Deploy! The frontend will dynamically fetch from your cloud API.
+

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 interface XGTimelineChartProps {
   matchId: number;
@@ -19,7 +20,7 @@ export default function XGTimelineChart({ matchId }: XGTimelineChartProps) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:8000/api/viz/xg-timeline?match_id=${matchId}`);
+        const res = await fetch(`${API_URL}/api/viz/xg-timeline?match_id=${matchId}`);
         if (!res.ok) {
           throw new Error(`Failed to load xG timeline (status ${res.status})`);
         }

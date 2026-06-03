@@ -30,7 +30,7 @@ export default function RootLayout({
     >
       <body className="font-sans min-h-full flex bg-[#0e1117] text-slate-100">
         <NavSidebar />
-        <main className="flex-1 h-screen overflow-y-auto flex flex-col">
+        <main className="flex-1 h-screen overflow-y-auto flex flex-col pt-14 md:pt-0">
           {children}
         </main>
       </body>

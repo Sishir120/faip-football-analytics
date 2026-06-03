@@ -10,6 +10,7 @@ import {
   Activity,
   Layers
 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export default function ComparePage() {
   const [competition, setCompetition] = useState<string>("la-liga");
@@ -26,7 +27,7 @@ export default function ComparePage() {
     setTriggerCount(prev => prev + 1);
   };
 
-  const fetchUrl = `http://localhost:8000/api/player/compare?season=${season}&competition=${competition}&x_metric=${xMetric}&y_metric=${yMetric}&min_minutes=${minMinutes}&highlight=${encodeURIComponent(highlights)}&t=${triggerCount}`;
+  const fetchUrl = `${API_URL}/api/player/compare?season=${season}&competition=${competition}&x_metric=${xMetric}&y_metric=${yMetric}&min_minutes=${minMinutes}&highlight=${encodeURIComponent(highlights)}&t=${triggerCount}`;
 
   // Standard metrics list
   const metrics = [
