@@ -22,8 +22,9 @@ class StatsBombService:
         """Fetch all available free competitions from StatsBomb."""
         try:
             df = sb.competitions()
-            # Convert to list of dicts
-            return df.to_dict(orient="records")
+            # Convert to list of dicts and sanitize NaN/Inf values
+            records = df.to_dict(orient="records")
+            return [clean_row(r) for r in records]
         except Exception as e:
             print(f"Error fetching competitions: {e}")
             return []
@@ -47,7 +48,7 @@ class StatsBombService:
                     "season": m.season,
                     "home_team": m.home_team,
                     "away_team": m.away_team,
-                    "date": m.date,
+                    "match_date": m.date,
                     "home_score": m.home_score,
                     "away_score": m.away_score
                 }
@@ -87,7 +88,7 @@ class StatsBombService:
                     "season": db_match.season,
                     "home_team": db_match.home_team,
                     "away_team": db_match.away_team,
-                    "date": db_match.date,
+                    "match_date": db_match.date,
                     "home_score": db_match.home_score,
                     "away_score": db_match.away_score
                 })

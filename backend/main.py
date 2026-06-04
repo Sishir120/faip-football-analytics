@@ -1,8 +1,43 @@
+import math
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from database import engine, Base
 import models.db_models  # Import to register models
+import json
+
+class NaNSafeJSONResponse(JSONResponse):
+    """Custom JSON response that converts NaN/Infinity to null."""
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            default=str,
+        ).encode("utf-8")
+
+def _sanitize(obj):
+    """Recursively replace NaN / Inf floats with None so JSON serialization never fails."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+class SafeJSONResponse(JSONResponse):
+    """JSONResponse that sanitizes NaN/Inf before serialization."""
+    def render(self, content) -> bytes:
+        cleaned = _sanitize(content)
+        return json.dumps(
+            cleaned,
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -10,7 +45,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Football Analytics Intelligence Platform (FAIP)",
     description="Backend service for matches, event visualizations, scraper pipelines, and ML models.",
-    version="1.0"
+    version="1.0",
+    default_response_class=SafeJSONResponse,
 )
 
 import threading
