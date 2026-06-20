@@ -21,6 +21,9 @@ from services.xt_service import XTService
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "trained_models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
+# Chunk size for streaming event queries — keeps peak RAM well below 512 MB
+_CHUNK_SIZE = 5000
+
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", dpi=150, facecolor="#0e1117")
@@ -76,15 +79,24 @@ class MLService:
     @classmethod
     def train_xg_model(cls, db: Session, algorithm: str = "logistic") -> dict:
         """Train xG model on all cached StatsBomb events. Returns metrics dict."""
-        all_events = db.query(Event).filter(Event.type == "Shot").all()
-        if len(all_events) < 30:
+        all_events = (
+            db.query(Event)
+            .filter(Event.type == "Shot")
+            .yield_per(_CHUNK_SIZE)
+            .enable_eagerloads(False)
+        )
+        events_list = []
+        count = 0
+        for e in all_events:
+            events_list.append({
+                "type": e.type, "x": e.x, "y": e.y,
+                "outcome": e.outcome, "xg": e.xg,
+                "details": e.details or {}
+            })
+            count += 1
+        db.expunge_all()
+        if count < 30:
             return {"error": "Not enough shot events cached. Seed more matches first."}
-
-        events_list = [{
-            "type": e.type, "x": e.x, "y": e.y,
-            "outcome": e.outcome, "xg": e.xg,
-            "details": e.details or {}
-        } for e in all_events]
 
         feat_df = cls._extract_xg_features(events_list)
         if feat_df.empty:
@@ -226,19 +238,22 @@ class MLService:
     @classmethod
     def train_pass_classifier(cls, db: Session) -> dict:
         """Train logistic regression to classify pass success."""
-        events = db.query(Event).filter(Event.type == "Pass").all()
-        if len(events) < 50:
-            return {"error": "Not enough pass events. Seed more matches."}
-
+        events_query = (
+            db.query(Event)
+            .filter(Event.type == "Pass")
+            .yield_per(_CHUNK_SIZE)
+            .enable_eagerloads(False)
+        )
         rows = []
-        for e in events:
+        count = 0
+        for e in events_query:
+            count += 1
             details = e.details or {}
             length = details.get("pass_length") or 0.0
             angle = details.get("pass_angle") or 0.0
             body_part = str(details.get("pass_body_part", "Foot")).lower()
             under_pressure = 1 if details.get("under_pressure") else 0
             outcome = e.outcome  # None = complete
-
             rows.append({
                 "length": float(length),
                 "angle": float(angle),
@@ -247,6 +262,9 @@ class MLService:
                 "under_pressure": under_pressure,
                 "is_complete": 1 if outcome is None else 0,
             })
+        db.expunge_all()
+        if count < 50:
+            return {"error": "Not enough pass events. Seed more matches."}
 
         df = pd.DataFrame(rows).fillna(0)
         X = df[["length", "angle", "is_foot", "is_head", "under_pressure"]].values
@@ -399,19 +417,34 @@ class MLService:
 
         match_ids = [m.match_id for m in matches]
 
-        # ── 2. Pull all events for those matches ───────────────────────────
-        events = db.query(Event).filter(Event.match_id.in_(match_ids)).all()
-        if not events:
+        # ── 2. Pull all events for those matches ────────────────────────────────
+        # Quick sanity check before streaming the full event set
+        has_events = (
+            db.query(Event.event_id)
+            .filter(Event.match_id.in_(match_ids))
+            .limit(1)
+            .first()
+        )
+        if not has_events:
             return {"error": "Events table is empty for the given matches. "
                              "Fetch events via /api/matches/{id}/events first."}
 
-        # ── 3. Aggregate raw counts per team ──────────────────────────────
+        # ── 3. Aggregate raw counts per team (streamed) ──────────────────────
         DEFENSIVE_ACTIONS = {"Pressure", "Tackle", "Interception", "Block",
                              "Foul Committed", "Challenge", "Duel", "Error"}
 
         team_raw: dict = {}
+        match_teams: dict = {}         # match_id -> set of teams (built during streaming)
+        team_touches_per_match: dict = {}  # (match_id, team) -> touches
 
-        for e in events:
+        event_stream = (
+            db.query(Event)
+            .filter(Event.match_id.in_(match_ids))
+            .yield_per(_CHUNK_SIZE)
+            .enable_eagerloads(False)
+        )
+
+        for e in event_stream:
             team = e.team
             if not team:
                 continue
@@ -431,6 +464,11 @@ class MLService:
             etype = e.type
             details = e.details or {}
             p["touches"] += 1
+
+            # Also populate match_teams and team_touches_per_match during this pass
+            match_teams.setdefault(e.match_id, set()).add(team)
+            key = (e.match_id, team)
+            team_touches_per_match[key] = team_touches_per_match.get(key, 0) + 1
 
             if etype == "Shot":
                 p["shots"] += 1
@@ -458,28 +496,16 @@ class MLService:
             elif etype == "Interception":
                 p["interceptions"] += 1
 
+        # Free the SQLAlchemy identity map — all event data is now in team_raw
+        db.expunge_all()
+
         # ── 4. Compute match-level possession & PPDA per match, then average
-        team_minutes: dict = {}   # team -> total_90s (approximate from touches)
-        team_ppda_num: dict = {}  # numerator sums across matches
-        team_ppda_den: dict = {}  # denominator sums
-
-        match_teams: dict = {}  # match_id -> set of teams
-        for e in events:
-            if e.team:
-                match_teams.setdefault(e.match_id, set()).add(e.team)
-
-        # Count 90s: StatsBomb encodes ~90 min; each match = 1 × 90 for each team
         team_match_count: dict = {}
         for mid, teams_in_match in match_teams.items():
             for t in teams_in_match:
                 team_match_count[t] = team_match_count.get(t, 0) + 1
 
-        # Possession: touches-based proxy per match
-        team_touches_per_match: dict = {}  # (match_id, team) -> touches
-        for e in events:
-            key = (e.match_id, e.team)
-            team_touches_per_match[key] = team_touches_per_match.get(key, 0) + 1
-
+        # Possession: touches-based proxy per match (already built during streaming)
         # Aggregate possession across all matches
         match_possession: dict = {}  # team -> list of pct
         for (mid, team), touches in team_touches_per_match.items():
@@ -488,10 +514,17 @@ class MLService:
             match_possession.setdefault(team, []).append(pct)
 
         # PPDA per match: opponent passes in their def 2/3 / own def actions in opp def 2/3
-        # Group events by match for PPDA
+        # Rebuild a lightweight events_by_match using only fields needed for PPDA
+        # We re-query with only the needed columns to avoid another full ORM load.
+        ppda_events = (
+            db.query(Event.match_id, Event.team, Event.type, Event.x)
+            .filter(Event.match_id.in_(match_ids))
+            .all()
+        )
+
         events_by_match: dict = {}
-        for e in events:
-            events_by_match.setdefault(e.match_id, []).append(e)
+        for row in ppda_events:
+            events_by_match.setdefault(row.match_id, []).append(row)
 
         team_ppda_list: dict = {}
         for mid, evs in events_by_match.items():

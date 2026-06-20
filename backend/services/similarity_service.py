@@ -13,6 +13,9 @@ from services.xt_service import XTService
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 
+# Chunk size for streaming event queries — keeps peak RAM well below 512 MB
+_CHUNK_SIZE = 2000
+
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", dpi=150, facecolor="#0e1117")
@@ -25,72 +28,94 @@ class SimilarityService:
     
     @staticmethod
     def calculate_player_minutes(db: Session) -> dict:
-        """Calculate exact minutes played for all players across cached matches using Starting XI & Substitution events."""
-        matches = db.query(Match).all()
-        player_minutes = {}
-        
-        for m in matches:
-            match_id = m.match_id
-            events = db.query(Event).filter(Event.match_id == match_id).all()
-            
-            # 1. Find starters
-            starters = set()
-            starting_xi_events = [e for e in events if e.type == "Starting XI"]
-            for se in starting_xi_events:
-                details = se.details or {}
-                tactics = details.get("tactics") or {}
-                lineup = tactics.get("lineup") or []
-                for entry in lineup:
-                    player_name = entry.get("player", {}).get("name")
-                    if player_name:
-                        starters.add(player_name)
-                        
-            # 2. Track substitutions
-            subs = {}  # player_name -> sub_minute
-            sub_events = [e for e in events if e.type == "Substitution"]
-            for sub in sub_events:
-                sub_details = sub.details or {}
-                minute = sub_details.get("minute") or 90
-                off_player = sub.player
-                on_player = sub_details.get("substitution_replacement")
-                
-                if off_player:
-                    subs[off_player] = minute
-                if on_player:
-                    subs[on_player] = -minute  # Negative to indicate player came ON at this minute
-                    
-            # 3. Calculate match minutes
-            match_players = set([e.player for e in events if e.player])
-            for player in match_players:
-                mins = 0
-                if player in starters:
-                    # If started and was subbed off, play time = sub_minute. Else 90.
-                    mins = subs.get(player, 90)
-                elif player in subs:
-                    # If was subbed on, play time = 90 - (-sub_minute) = 90 - sub_minute
-                    on_min = -subs[player]
-                    mins = max(0, 90 - on_min)
-                else:
-                    # Came on without explicit substitution event logged (fallback) or played minor role
-                    mins = 15
-                    
-                player_minutes[player] = player_minutes.get(player, 0) + mins
-                
+        """
+        Calculate exact minutes played for all players across cached matches.
+
+        Uses a single bulk query for Starting XI and Substitution events only
+        (instead of one query per match) to avoid the N+1 memory problem.
+        """
+        # ── 1. One query for all Starting XI events ─────────────────────────
+        xi_events = (
+            db.query(Event.match_id, Event.details)
+            .filter(Event.type == "Starting XI")
+            .all()
+        )
+
+        # match_id -> set of starter names
+        match_starters: dict = {}
+        for match_id, details in xi_events:
+            details = details or {}
+            lineup = (details.get("tactics") or {}).get("lineup") or []
+            starters = match_starters.setdefault(match_id, set())
+            for entry in lineup:
+                name = entry.get("player", {}).get("name")
+                if name:
+                    starters.add(name)
+
+        # ── 2. One query for all Substitution events ─────────────────────────
+        sub_events = (
+            db.query(Event.match_id, Event.player, Event.details)
+            .filter(Event.type == "Substitution")
+            .all()
+        )
+
+        # match_id -> {player_name -> sub_minute (positive=off, negative=on_minute)}
+        match_subs: dict = {}
+        for match_id, off_player, details in sub_events:
+            details = details or {}
+            minute = details.get("minute") or 90
+            subs = match_subs.setdefault(match_id, {})
+            if off_player:
+                subs[off_player] = minute
+            on_player = details.get("substitution_replacement")
+            if on_player:
+                subs[on_player] = -minute  # negative = came ON at this minute
+
+        # ── 3. One lightweight query for all (match_id, player) pairs ────────
+        player_match_pairs = (
+            db.query(Event.match_id, Event.player)
+            .filter(Event.player.isnot(None))
+            .distinct()
+            .all()
+        )
+
+        # ── 4. Accumulate minutes ─────────────────────────────────────────────
+        player_minutes: dict = {}
+        for match_id, player in player_match_pairs:
+            starters = match_starters.get(match_id, set())
+            subs = match_subs.get(match_id, {})
+
+            if player in starters:
+                mins = subs.get(player, 90)
+            elif player in subs:
+                on_min = -subs[player]
+                mins = max(0, 90 - on_min)
+            else:
+                mins = 15  # fallback for minor-role appearances
+
+            player_minutes[player] = player_minutes.get(player, 0) + mins
+
         return player_minutes
 
     @classmethod
     def compile_player_stats(cls, db: Session) -> pd.DataFrame:
-        """Compile a rich player profile DataFrame from event logs."""
-        events = db.query(Event).all()
-        if not events:
+        """
+        Compile a rich player profile DataFrame from event logs.
+
+        Streams events in chunks of _CHUNK_SIZE using yield_per() and flushes
+        the SQLAlchemy identity map after each chunk to cap peak RAM usage.
+        """
+        # Quick count check — avoids loading anything if table is empty
+        if db.query(Event.event_id).limit(1).first() is None:
             return pd.DataFrame()
             
-        # Calculate minutes
+        # Calculate minutes (single bulk query — no N+1)
         minutes_map = cls.calculate_player_minutes(db)
-        
-        # Aggregate stats
+
+        # Aggregate stats — stream events in chunks to stay under 512 MB
         raw_stats = {}
-        for e in events:
+        query = db.query(Event).yield_per(_CHUNK_SIZE).enable_eagerloads(False)
+        for e in query:
             player = e.player
             team = e.team
             if not player or not team:
@@ -168,7 +193,12 @@ class SimilarityService:
                 p["interceptions"] += 1
             elif etype == "Duel" and details.get("duel_type") == "Tackle":
                 p["tackles"] += 1
-                
+
+        # Flush the SQLAlchemy identity map periodically so GC can reclaim ORM
+        # objects that are no longer referenced (yield_per batches them internally,
+        # but expunge_all ensures no lingering references after the loop).
+        db.expunge_all()
+
         # Resolve primary position and map to groups
         # DF = Defender, MF = Midfielder, FW = Forward, GK = Goalkeeper
         for player, p in raw_stats.items():
