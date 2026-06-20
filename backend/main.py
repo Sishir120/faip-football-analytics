@@ -1,4 +1,5 @@
 import math
+import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,9 +85,14 @@ def startup_event():
         db.close()
 
 # CORS middleware configuration
+# In production set ALLOWED_ORIGINS="https://your-app.vercel.app" on Railway.
+# Locally, leave it unset to default to ["*"].
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify frontend URL
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

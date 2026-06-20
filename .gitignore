@@ -41,10 +41,24 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Environment and logs
-.env*
+# Environment files — keep .env.example, exclude all real secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Allow example templates to be committed
+!.env.example
+
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# ML model artifacts (large binary files)
+backend/trained_models/*.pkl
+backend/trained_models/*.joblib
+backend/trained_models/*.h5
